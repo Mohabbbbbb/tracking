@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إنشاء رابط تتبع مباشر</title>
+  <style>
+    body {
+      font-family: Arial;
+      direction: rtl;
+      text-align: right;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+
+    input {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px 0;
+      cursor: pointer;
+    }
+
+    #resultBox {
+      display: none;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+
+    a {
+      color: #0077cc;
+      display: block;
+      margin: 5px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>إنشاء رابط تتبع مباشر</h2>
+  <input type="text" id="name" placeholder="الاسم">
+  <input type="text" id="phone" placeholder="رقم الهاتف">
+  <button onclick="generateLink()">إنشاء الرابط</button>
+
+  <div id="resultBox">
+    <h3>الرابط:</h3>
+    <div id="trackingLink"></div>
+    <button onclick="copyLink()">نسخ الرابط</button>
+
+    <h3>رسالة جاهزة للإرسال:</h3>
+    <div id="messageBox"></div>
+    <button onclick="copyMessage()">نسخ الرسالة</button>
+
+    <a id="waBtn" target="_blank">إرسال على واتساب</a>
+    <a id="smsBtn" target="_blank">إرسال رسالة SMS</a>
+  </div>
+
+  <script>
+    function generateToken() { return Math.random().toString(36).substring(2, 12) + Date.now().toString(36); }
+    function cleanPhone(phone) { return phone.replace(/\D/g, ""); }
+
+    let finalLink = "", finalMessage = "";
+    function generateLink() {
+      const name = document.getElementById("name").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+      if (!name || !phone) { alert("من فضلك اكتب الاسم ورقم الموبايل"); return; }
+      const token = generateToken();
+      const base = window.location.origin;
+      finalLink = `${base}/track.html?token=${encodeURIComponent(token)}&name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`;
+      finalMessage = `افتح الرابط واسمح بالموقع:\n${finalLink}`;
+      document.getElementById("trackingLink").textContent = finalLink;
+      document.getElementById("messageBox").textContent = finalMessage;
+      const clean = cleanPhone(phone);
+      document.getElementById("waBtn").href = `https://wa.me/${clean}?text=${encodeURIComponent(finalMessage)}`;
+      document.getElementById("smsBtn").href = `sms:${clean}?body=${encodeURIComponent(finalMessage)}`;
+      document.getElementById("resultBox").style.display = "block";
+    }
+    function copyLink() { navigator.clipboard.writeText(finalLink).then(() => { alert("تم نسخ الرابط ✅"); }); }
+    function copyMessage() { navigator.clipboard.writeText(finalMessage).then(() => { alert("تم نسخ الرسالة ✅"); }); }
+  </script>
+</body>
+
+</html>
