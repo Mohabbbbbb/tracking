@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ar">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تتبع الموقع</title>
+  <style>
+    body {
+      font-family: Arial;
+      direction: rtl;
+      text-align: right;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin: 10px 0;
+      cursor: pointer;
+    }
+
+    #map {
+      width: 100%;
+      height: 300px;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+    }
+
+    .log-item {
+      margin: 5px 0;
+      font-size: 14px;
+      background: #fff;
+      padding: 5px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>تتبع الموقع</h2>
+  <p id="welcomeText"></p>
+  <p><strong>الاسم:</strong> <span id="personName"></span></p>
+  <p><strong>الهاتف:</strong> <span id="personPhone"></span></p>
+  <p><strong>الحالة:</strong> <span id="status">غير نشط</span> | <span id="liveState">غير نشط</span></p>
+
+  <button onclick="startTracking()">بدء مشاركة الموقع</button>
+  <button onclick="stopTracking()">إيقاف المشاركة</button>
+
+  <h3>الموقع الحالي:</h3>
+  <p>خط العرض: <span id="lat"></span></p>
+  <p>خط الطول: <span id="lon"></span></p>
+  <p>الدقة: <span id="accuracy"></span></p>
+  <p>السرعة: <span id="speed"></span></p>
+  <p>الوقت: <span id="time"></span></p>
+
+  <a id="mapLink" href="#" target="_blank">افتح في خرائط جوجل</a>
+  <iframe id="map" src="" frameborder="0"></iframe>
+
+  <h3>آخر 15 تحديث:</h3>
+  <div id="logs"></div>
+
+  <script>
+    let watchId = null;
+    const statusEl = document.getElementById("status");
+    const liveState = document.getElementById("liveState");
+    const logsEl = document.getElementById("logs");
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const name = params.get("name");
+    const phone = params.get("phone");
+
+    if (name) document.getElementById("personName").textContent = name;
+    if (phone) document.getElementById("personPhone").textContent = phone;
+    document.getElementById("welcomeText").innerHTML = name ? `مرحبًا <strong>${name}</strong>، اضغط "بدء المشاركة".` : `افتح الصفحة وابدأ مشاركة الموقع.`;
+
+    function formatTime() { return new Date().toLocaleString("ar-EG"); }
+    function addLog(text) { const item = document.createElement("div"); item.className = "log-item"; item.textContent = text; logsEl.prepend(item); if (logsEl.children.length > 15) logsEl.removeChild(logsEl.lastChild); }
+    function updateUI(lat, lon, accuracy, speed = null) {
+      document.getElementById("lat").textContent = lat;
+      document.getElementById("lon").textContent = lon;
+      document.getElementById("accuracy").textContent = accuracy + " متر";
+      document.getElementById("speed").textContent = speed !== null ? (speed.toFixed(2) + " م/ث") : "غير متاح";
+      document.getElementById("time").textContent = formatTime();
+      const mapsUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+      document.getElementById("mapLink").href = mapsUrl;
+      document.getElementById("map").src = `https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`;
+    }
+    function saveLocalTracking(lat, lon, accuracy, speed = null) {
+      if (!token) return;
+      const key = "track_locations_" + token;
+      let history = JSON.parse(localStorage.getItem(key) || "[]");
+      history.unshift({ latitude: lat, longitude: lon, accuracy, speed, time: new Date().toISOString() });
+      history = history.slice(0, 50);
+      localStorage.setItem(key, JSON.stringify(history));
+    }
+    function startTracking() {
+      if (!navigator.geolocation) { statusEl.textContent = "المتصفح لا يدعم تحديد الموقع."; return; }
+      if (watchId !== null) { statusEl.textContent = "المشاركة تعمل بالفعل."; return; }
+      liveState.textContent = "نشط الآن ✅";
+      statusEl.textContent = "جاري بدء مشاركة الموقع...";
+      watchId = navigator.geolocation.watchPosition(
+        position => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const accuracy = Math.round(position.coords.accuracy);
+          const speed = position.coords.speed;
+          updateUI(lat, lon, accuracy, speed);
+          saveLocalTracking(lat, lon, accuracy, speed);
+          statusEl.textContent = "يتم تحديث الموقع باستمرار...";
+          addLog(`📍 ${lat}, ${lon} | دقة: ${accuracy} متر | ${formatTime()}`);
+        },
+        error => {
+          liveState.textContent = "غير نشط";
+          switch (error.code) {
+            case error.PERMISSION_DENIED: statusEl.textContent = "تم رفض إذن الموقع."; addLog("❌ تم رفض إذن الموقع."); break;
+            case error.POSITION_UNAVAILABLE: statusEl.textContent = "تعذر تحديد الموقع."; addLog("⚠️ تعذر تحديد الموقع."); break;
+            case error.TIMEOUT: statusEl.textContent = "انتهى وقت محاولة تحديد الموقع."; addLog("⏱️ انتهى وقت محاولة تحديد الموقع."); break;
+            default: statusEl.textContent = "حدث خطأ أثناء التتبع."; addLog("⚠️ حدث خطأ أثناء التتبع."); break;
+          }
+        },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+      );
+    }
+    function stopTracking() { if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; liveState.textContent = "غير نشط"; statusEl.textContent = "تم إيقاف مشاركة الموقع."; addLog("⛔ تم إيقاف التتبع."); } }
+  </script>
+
+</body>
+
+</html>
